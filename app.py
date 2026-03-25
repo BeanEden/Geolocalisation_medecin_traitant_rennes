@@ -41,6 +41,40 @@ def refresh_data():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
+@app.route('/api/update_phone', methods=['POST'])
+def update_phone():
+    try:
+        data = request.json
+        name = data.get("name")
+        address = data.get("address")
+        phone = data.get("phone")
+        
+        if not name or not phone:
+            return jsonify({"status": "error", "message": "Données manquantes"}), 400
+            
+        filepath = os.path.join(os.path.dirname(__file__), 'medecins_extraits.json')
+        if not os.path.exists(filepath):
+            return jsonify({"status": "error", "message": "Fichier introuvable"}), 404
+            
+        with open(filepath, 'r', encoding='utf-8') as f:
+            doctors = json.load(f)
+            
+        updated = False
+        for doc in doctors:
+            if doc.get('name') == name and doc.get('address') == address:
+                doc['phone'] = phone
+                updated = True
+                break
+                
+        if updated:
+            with open(filepath, 'w', encoding='utf-8') as f:
+                json.dump(doctors, f, indent=4, ensure_ascii=False)
+            return jsonify({"status": "success", "message": "Téléphone mis à jour"})
+        else:
+            return jsonify({"status": "error", "message": "Praticien introuvable"}), 404
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 if __name__ == '__main__':
     # On lance l'application sur le port 5000
     app.run(debug=True, port=5000)

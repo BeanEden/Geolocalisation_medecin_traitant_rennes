@@ -399,9 +399,68 @@
             align-items: center;
         }
 
+        /* Cart & Phone Edit */
+        #cart-modal {
+            display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0,0,0,0.5); z-index: 9999; justify-content: center; align-items: center;
+            backdrop-filter: blur(3px);
+        }
+        .cart-content {
+            background: white; width: 90%; max-width: 800px; max-height: 80vh;
+            border-radius: 12px; display: flex; flex-direction: column; overflow: hidden;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
+        .cart-header {
+            padding: 20px; background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white; display: flex; justify-content: space-between; align-items: center;
+        }
+        .cart-body {
+            flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 10px;
+        }
+        .cart-item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 10px; border-bottom: 1px solid #e2e8f0;
+        }
+        .cart-item:last-child { border-bottom: none; }
+        .cart-footer {
+            padding: 20px; background: #f8fafc; border-top: 1px solid #e2e8f0;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .btn-action {
+            padding: 8px 15px; border: none; border-radius: 6px; color: white; cursor: pointer;
+            font-weight: 500; display: inline-flex; align-items: center; gap: 5px; transition: all 0.2s;
+        }
+        .btn-add { background: var(--primary); }
+        .btn-add:hover { background: var(--primary-dark); }
+        .btn-remove { background: #ef4444; }
+        .btn-remove:hover { background: #dc2626; }
+        .btn-export { background: #22c55e; }
+        .btn-export:hover { background: #16a34a; }
+        
+        .btn-edit-phone {
+            background: #f59e0b; padding: 4px 8px; border-radius: 4px; color: white; font-size: 0.75rem;
+            cursor: pointer; border: none; margin-left: 5px; display: inline-flex; align-items: center; gap: 4px;
+            transition: all 0.2s;
+        }
+        .btn-edit-phone:hover { background: #d97706; }
     </style>
 </head>
 <body>
+    <div id="cart-modal">
+        <div class="cart-content">
+            <div class="cart-header">
+                <h2 style="margin:0; font-size:1.3rem;"><i class="fa-solid fa-list-check"></i> Praticiens sélectionnés (<span id="cart-modal-count">0</span>)</h2>
+                <button id="btn-close-cart" style="background:none; border:none; color:white; font-size:1.5rem; cursor:pointer;"><i class="fa-solid fa-times"></i></button>
+            </div>
+            <div class="cart-body" id="cart-items">
+                <!-- Items injectés ici -->
+            </div>
+            <div class="cart-footer">
+                <button id="btn-empty-cart" class="btn-action btn-remove"><i class="fa-solid fa-trash"></i> Vider la sélection</button>
+                <button id="btn-export-csv" class="btn-action btn-export"><i class="fa-solid fa-file-csv"></i> Exporter en CSV</button>
+            </div>
+        </div>
+    </div>
 
     <div class="loader-wrapper" id="loader">
         <div class="spinner"></div>
@@ -441,8 +500,10 @@
                     <option value="">Tous les praticiens</option>
                     <option value="Femme">Femmes</option>
                     <option value="Homme">Hommes</option>
-                </select>
-                <button id="btn-refresh"><i class="fa-solid fa-rotate"></i> Actualiser les données (.txt)</button>
+                <div style="display: flex; gap: 10px;">
+                    <button id="btn-refresh" style="flex:1" title="Actualiser la base (Local)"><i class="fa-solid fa-rotate"></i> Actualiser</button>
+                    <button id="btn-cart" style="flex:1; background: var(--secondary); color: white;"><i class="fa-solid fa-list-check"></i> <span id="cart-count">0</span> Sélection</button>
+                </div>
             </div>
 
             <div class="doctor-list" id="doctor-list">
@@ -487,6 +548,84 @@
             let currentRenderedDoctors = [];
             let userMarker = null;
             let routingControl = null;
+            let cart = JSON.parse(localStorage.getItem('medecin_cart')) || [];
+            
+            function updateCartCount() {
+                const countElem = document.getElementById('cart-count');
+                const countModalElem = document.getElementById('cart-modal-count');
+                if (countElem) countElem.innerText = cart.length;
+                if (countModalElem) countModalElem.innerText = cart.length;
+            }
+            updateCartCount();
+
+            function renderCart() {
+                const container = document.getElementById('cart-items');
+                if (cart.length === 0) {
+                    container.innerHTML = '<p style="text-align:center; color:gray; font-size: 1.1rem; padding: 2rem;">Votre sélection est vide.</p>';
+                    return;
+                }
+                container.innerHTML = cart.map((c, i) => `
+                    <div class="cart-item">
+                        <div>
+                            <strong style="color:var(--primary-dark); font-size:1.1rem;">${c.name}</strong> <span style="font-size:0.85rem; color:gray;">(${c.specialties || 'Généraliste'})</span><br>
+                            <span style="font-size:0.85rem; margin-top:5px; display:inline-block;"><i class="fa-solid fa-location-dot" style="color:var(--primary);"></i> ${c.address}</span><br>
+                            ${c.phone ? `<span style="font-size:0.85rem; color:var(--text-main); margin-top:2px; display:inline-block;"><i class="fa-solid fa-mobile-screen" style="color:var(--primary);"></i> ${c.phone}</span>` : ''}
+                        </div>
+                        <button class="btn-action btn-remove" onclick="removeCartIndex(${i})" style="padding:8px 12px;" title="Retirer"><i class="fa-solid fa-trash"></i></button>
+                    </div>
+                `).join('');
+            }
+            
+            window.removeCartIndex = (i) => {
+                cart.splice(i, 1);
+                localStorage.setItem('medecin_cart', JSON.stringify(cart));
+                updateCartCount();
+                renderCart();
+                renderDoctors(currentRenderedDoctors);
+            };
+
+            window.toggleCartItemStr = function(jsonStr, event) { 
+                if (event) event.stopPropagation();
+                const doc = JSON.parse(decodeURIComponent(jsonStr));
+                const index = cart.findIndex(d => d.name === doc.name && d.address === doc.address);
+                if (index > -1) cart.splice(index, 1);
+                else cart.push(doc);
+                localStorage.setItem('medecin_cart', JSON.stringify(cart));
+                updateCartCount();
+                renderCart();
+                renderDoctors(currentRenderedDoctors); 
+            };
+
+            window.editPhone = async function(name, address, event) {
+                if (event) event.stopPropagation();
+                const newPhone = prompt(`Ajouter ou modifier le numéro de téléphone pour ${name} :`);
+                if (!newPhone) return;
+                
+                const doc = allDoctors.find(d => d.name === name && d.address === address);
+                if (doc) doc.phone = newPhone;
+                
+                const cartDoc = cart.find(d => d.name === name && d.address === address);
+                if (cartDoc) {
+                    cartDoc.phone = newPhone;
+                    localStorage.setItem('medecin_cart', JSON.stringify(cart));
+                }
+                
+                if (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost') {
+                    try {
+                        const res = await fetch('/api/update_phone', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({ name, address, phone: newPhone })
+                        });
+                        if (!res.ok) throw new Error("Erreur BDD");
+                    } catch(e) { console.error("Erreur save tel", e); alert("Erreur d'enregistrement."); }
+                } else {
+                    alert("Mode Public: Modification sauvegardée temporairement dans votre navigateur (LocalStorage).");
+                }
+                
+                renderDoctors(currentRenderedDoctors);
+                if (document.getElementById('cart-modal').style.display === 'flex') renderCart();
+            };
 
             function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
                 const R = 6371;
@@ -558,6 +697,12 @@
                         popupAnchor: [0, -20]
                     });
 
+                    const isInCart = cart.some(c => c.name === doc.name && c.address === doc.address);
+                    const cartIcon = isInCart ? 'fa-minus' : 'fa-plus';
+                    const cartText = isInCart ? 'Retirer' : 'Sélectionner';
+                    const cartBtnClass = isInCart ? 'btn-remove' : 'btn-add';
+                    const docJson = encodeURIComponent(JSON.stringify(doc));
+
                     let popupContent = `
                         <div class="popup-wrapper">
                             <div class="popup-header" style="background: linear-gradient(135deg, ${markerColor}, var(--secondary));">
@@ -569,8 +714,11 @@
                                 ${doc.dist !== undefined ? `<div class="popup-others" style="color: var(--primary); font-weight: bold;"><i class="fa-solid fa-route"></i> À ${doc.dist.toFixed(2)} km</div>` : ''}
                                 <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 10px 0;">
                                 ${doc.address ? `<div class="popup-contact"><i class="fa-solid fa-location-dot"></i> <span>${doc.address}</span></div>` : ''}
-                                ${doc.phone ? `<div class="popup-contact"><i class="fa-solid fa-phone"></i> <span>${doc.phone}</span></div>` : ''}
-                                ${userMarker ? `<button class="btn-route" onclick="traceRoute(${doc.lat}, ${doc.lon})" style="margin-top:10px; width:100%; padding:8px; background:var(--primary); color:white; border:none; border-radius:5px; cursor:pointer;"><i class="fa-solid fa-location-arrow"></i> Itinéraire</button>` : ''}
+                                ${doc.phone ? `<div class="popup-contact"><i class="fa-solid fa-phone"></i> <span>${doc.phone}</span> <button class="btn-edit-phone" onclick="editPhone('${doc.name.replace(/'/g,"\\'")}','${doc.address.replace(/'/g,"\\'")}', event)"><i class="fa-solid fa-pen"></i></button></div>` : `<div class="popup-contact"><button class="btn-edit-phone" onclick="editPhone('${doc.name.replace(/'/g,"\\'")}','${doc.address.replace(/'/g,"\\'")}', event)"><i class="fa-solid fa-plus"></i> Numéro</button></div>`}
+                                <div style="display:flex; gap:10px; margin-top:10px;">
+                                    ${userMarker ? `<button class="btn-action btn-add" onclick="traceRoute(${doc.lat}, ${doc.lon})" style="flex:1; justify-content:center; padding:6px; background:var(--text-main);"><i class="fa-solid fa-location-arrow"></i> Trajet</button>` : ''}
+                                    <button class="btn-action ${cartBtnClass}" onclick="toggleCartItemStr('${docJson}', event)" style="flex:1; justify-content:center; padding:6px;"><i class="fa-solid ${cartIcon}"></i> ${cartText}</button>
+                                </div>
                             </div>
                         </div>
                     `;
@@ -581,11 +729,14 @@
                     const card = document.createElement('div');
                     card.className = 'doctor-card';
                     card.innerHTML = `
-                        <div class="doc-name" style="color: ${markerColor};"><i class="fa-solid ${customIcon}"></i> ${doc.name}</div>
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                            <div class="doc-name" style="color: ${markerColor};"><i class="fa-solid ${customIcon}"></i> ${doc.name}</div>
+                            <button class="btn-action ${cartBtnClass}" onclick="toggleCartItemStr('${docJson}', event)" style="padding:4px 8px; font-size:0.8rem; border-radius:4px;" title="${cartText}"><i class="fa-solid ${cartIcon}"></i></button>
+                        </div>
                         <div class="doc-specs">${doc.specialties || 'Généraliste'}</div>
                         ${doc.dist !== undefined ? `<div class="doc-info" style="color: var(--primary); font-weight: bold;"><i class="fa-solid fa-route"></i> ${doc.dist.toFixed(2)} km de votre recherche</div>` : ''}
                         ${doc.address ? `<div class="doc-info"><i class="fa-solid fa-map-pin"></i> <span>${doc.address}</span></div>` : ''}
-                        ${doc.phone ? `<div class="doc-info"><i class="fa-solid fa-mobile-screen"></i> <span>${doc.phone}</span></div>` : ''}
+                        ${doc.phone ? `<div class="doc-info"><i class="fa-solid fa-mobile-screen"></i> <span>${doc.phone}</span> <button class="btn-edit-phone" onclick="editPhone('${doc.name.replace(/'/g,"\\'")}','${doc.address.replace(/'/g,"\\'")}', event)"><i class="fa-solid fa-pen"></i></button></div>` : `<div class="doc-info"><button class="btn-edit-phone" onclick="editPhone('${doc.name.replace(/'/g,"\\'")}','${doc.address.replace(/'/g,"\\'")}', event)"><i class="fa-solid fa-plus"></i> Numéro</button></div>`}
                         <div class="doc-info" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 5px;"><i class="fa-solid fa-crosshairs"></i> ${doc.lat.toFixed(4)}, ${doc.lon.toFixed(4)}</div>
                     `;
                     
@@ -818,6 +969,39 @@
                     loader.style.display = 'none';
                     loader.querySelector('p').innerText = "Chargement des praticiens...";
                 }, 500);
+            });
+
+            // Cart Events
+            document.getElementById('btn-cart').addEventListener('click', () => {
+                renderCart();
+                document.getElementById('cart-modal').style.display = 'flex';
+            });
+            document.getElementById('btn-close-cart').addEventListener('click', () => {
+                document.getElementById('cart-modal').style.display = 'none';
+            });
+            document.getElementById('btn-empty-cart').addEventListener('click', () => {
+                if (cart.length === 0) return;
+                if(confirm("Voulez-vous vraiment vider votre sélection (" + cart.length + " praticiens) ?")) {
+                    cart = [];
+                    localStorage.removeItem('medecin_cart');
+                    updateCartCount();
+                    renderCart();
+                    renderDoctors(currentRenderedDoctors);
+                }
+            });
+            document.getElementById('btn-export-csv').addEventListener('click', () => {
+                if (cart.length === 0) return alert("Le panier est vide !");
+                let csv = "Nom;Spécialités;Adresse;Téléphone;Sexe;Coordonnées\n";
+                cart.forEach(d => {
+                    const coords = (d.lat && d.lon) ? `${d.lat}, ${d.lon}` : '';
+                    csv += `"${d.name}";"${d.specialties || ''}";"${d.address || ''}";"${d.phone || ''}";"${d.sexe || ''}";"${coords}"\n`;
+                });
+                const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csv], { type: 'text/csv;charset=utf-8;' }); // BOM for Excel
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'praticiens_selectionnes.csv';
+                a.click();
             });
 
             // Lancement initial
