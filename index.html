@@ -709,7 +709,7 @@
                     const cartIcon = isInCart ? 'fa-minus' : 'fa-plus';
                     const cartText = isInCart ? 'Retirer' : 'Sélectionner';
                     const cartBtnClass = isInCart ? 'btn-remove' : 'btn-add';
-                    const docJson = encodeURIComponent(JSON.stringify(doc));
+                    const docJson = encodeURIComponent(JSON.stringify(doc)).replace(/'/g, "%27");
 
                     let popupContent = `
                         <div class="popup-wrapper">
