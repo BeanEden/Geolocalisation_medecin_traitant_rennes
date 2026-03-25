@@ -828,8 +828,10 @@
             document.getElementById('btn-select-all').addEventListener('click', () => {
                 if (currentRenderedDoctors.length === 0) return;
                 currentRenderedDoctors.forEach(doc => {
-                    const index = cart.findIndex(d => d.name === doc.name && d.address === doc.address);
-                    if (index === -1) cart.push(doc);
+                    if (doc.cardElement && doc.cardElement.style.display !== 'none') {
+                        const index = cart.findIndex(d => d.name === doc.name && d.address === doc.address);
+                        if (index === -1) cart.push(doc);
+                    }
                 });
                 localStorage.setItem('medecin_cart', JSON.stringify(cart));
                 updateCartCount();
