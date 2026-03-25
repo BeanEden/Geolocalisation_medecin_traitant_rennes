@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ordre des Médecins - Rennes</title>
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
+    
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --secondary: #0ea5e9;
+            --bg-color: #f8fafc;
+            --card-bg: rgba(255, 255, 255, 0.9);
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            overflow: hidden; /* App feels native */
+            display: flex;
+            height: 100vh;
+        }
+        
+        main {
+            display: flex;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* Sidebar Sidebar */
+        .sidebar {
+            width: 400px;
+            height: 100%;
+            background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%);
+            box-shadow: 4px 0 20px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+            z-index: 1000;
+            transition: transform 0.3s ease;
+        }
+
+        .header {
+            padding: 2rem;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            border-bottom-right-radius: 20px;
+            box-shadow: 0 4px 15px rgba(37, 99, 235, 0.2);
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .header p {
+            font-size: 0.95rem;
+            opacity: 0.9;
+        }
+
+        .stats {
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            background: white;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .controls {
+            padding: 1rem 1.5rem;
+            background: white;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .controls input, .controls select {
+            flex: 1;
+            padding: 0.5rem;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .controls input:focus, .controls select:focus {
+            border-color: var(--primary);
+        }
+
+        .controls button {
+            padding: 0.5rem 1rem;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+        }
+
+        .controls button:hover {
+            background: var(--primary-dark);
+        }
+        
+        #btn-refresh {
+            background: var(--bg-color);
+            color: var(--text-main);
+            border: 1px solid #cbd5e1;
+            width: 100%;
+        }
+        #btn-refresh:hover {
+            background: #e2e8f0;
+        }
+
+        /* Autocompletion */
+        .autocomplete-wrapper {
+            position: relative;
+            flex: 1;
+        }
+        .autocomplete-wrapper input {
+            width: 100%;
+        }
+        .suggestions {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #cbd5e1;
+            border-top: none;
+            border-radius: 0 0 6px 6px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 2000;
+            display: none;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .suggestion-item {
+            padding: 10px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .suggestion-item:last-child {
+            border-bottom: none;
+        }
+        .suggestion-item:hover {
+            background: #f8fafc;
+            color: var(--primary);
+        }
+
+        .doctor-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        /* Scrollbar */
+        .doctor-list::-webkit-scrollbar {
+            width: 6px;
+        }
+        .doctor-list::-webkit-scrollbar-thumb {
+            background-color: #cbd5e1;
+            border-radius: 10px;
+        }
+
+        .doctor-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.25rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+            border-left: 4px solid var(--primary);
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .doctor-card:hover {
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+            border-left-color: var(--secondary);
+        }
+
+        .doctor-card::after {
+            content: '';
+            position: absolute;
+            top: 0; right: 0; bottom: 0; left: 0;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+            transform: translateX(-100%);
+            transition: transform 0.6s;
+            pointer-events: none;
+        }
+
+        .doctor-card:hover::after {
+            transform: translateX(100%);
+        }
+
+        .doc-name {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--primary-dark);
+            margin-bottom: 4px;
+        }
+
+        .doc-specs {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            font-weight: 500;
+            margin-bottom: 8px;
+            padding-bottom: 8px;
+            border-bottom: 1px dashed #e2e8f0;
+        }
+
+        .doc-info {
+            font-size: 0.8rem;
+            color: var(--text-main);
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            margin-top: 6px;
+            line-height: 1.4;
+        }
+        .doc-info i {
+            color: var(--primary);
+            margin-top: 3px;
+            width: 14px;
+        }
+
+        /* Map */
+        #map {
+            flex: 1;
+            height: 100%;
+            background: #e2e8f0;
+            z-index: 1;
+        }
+
+        /* Popup styling */
+        .leaflet-popup-content-wrapper {
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1) !important;
+            overflow: hidden;
+            padding: 0;
+        }
+        .leaflet-popup-content {
+            margin: 0 !important;
+        }
+        
+        .popup-header {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            padding: 15px 20px;
+        }
+        .popup-header h3 {
+            margin: 0;
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+        .popup-body {
+            padding: 15px 20px;
+            background: white;
+        }
+        .popup-spec {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-bottom: 5px;
+        }
+        .popup-others {
+            font-size: 0.8rem;
+            color: #94a3b8;
+            margin-bottom: 10px;
+        }
+        .popup-contact {
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 5px;
+        }
+        .popup-contact i {
+            color: var(--primary);
+        }
+
+        /* Loading */
+        .loader-wrapper {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: white;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            transition: opacity 0.5s ease;
+        }
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #e2e8f0;
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+
+        /* Custom marker icon */
+        .custom-marker {
+            width: 40px;
+            height: 40px;
+            background: white;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            border: 3px solid var(--primary);
+            color: var(--primary);
+            font-size: 1.2rem;
+            transition: transform 0.2s;
+        }
+        .custom-marker:hover {
+            transform: scale(1.15);
+            color: white;
+            background: var(--primary);
+            border-color: white;
+        }
+
+        /* Cluster */
+        .marker-cluster-custom {
+            background-color: rgba(37, 99, 235, 0.2);
+            border-radius: 50%;
+        }
+        .marker-cluster-custom div {
+            background-color: rgba(37, 99, 235, 0.9);
+            color: white;
+            font-family: 'Outfit';
+            font-weight: 600;
+            width: 30px;
+            height: 30px;
+            margin-left: 5px;
+            margin-top: 5px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="loader-wrapper" id="loader">
+        <div class="spinner"></div>
+        <p style="margin-top: 20px; color: var(--text-muted); font-weight: 500;">Chargement des praticiens...</p>
+    </div>
+
+    <main>
+        <aside class="sidebar">
+            <div class="header">
+                <h1><i class="fa-solid fa-stethoscope"></i> Praticiens</h1>
+                <p>Annuaire de l'Ordre, Région de Rennes</p>
+            </div>
+            
+            <div class="stats">
+                <div class="stat-item">
+                    <div class="stat-value" id="stat-total">0</div>
+                    <div class="stat-label">Extraits</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="stat-map" style="color: var(--secondary)">0</div>
+                    <div class="stat-label">Sur Carte</div>
+                </div>
+            </div>
+
+            <div class="controls">
+                <div class="input-group">
+                    <div class="autocomplete-wrapper">
+                        <input type="text" id="search-address" placeholder="Ex: 5 rue de Saint Malo, Rennes">
+                        <div class="suggestions" id="suggestions-box"></div>
+                    </div>
+                    <button id="btn-search" title="Chercher proche de cette adresse"><i class="fa-solid fa-search"></i></button>
+                </div>
+                <select id="filter-specialty">
+                    <option value="">Toutes les spécialités</option>
+                </select>
+                <select id="filter-sexe">
+                    <option value="">Tous les praticiens</option>
+                    <option value="Femme">Femmes</option>
+                    <option value="Homme">Hommes</option>
+                </select>
+                <button id="btn-refresh"><i class="fa-solid fa-rotate"></i> Actualiser les données (.txt)</button>
+            </div>
+
+            <div class="doctor-list" id="doctor-list">
+                <!-- Les cartes vont s'injecter ici -->
+            </div>
+        </aside>
+
+        <section id="map"></section>
+    </main>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+    <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Initialisation de la carte, centrée sur Rennes
+            const map = L.map('map', {
+                zoomControl: false // On la met en bas à droite
+            }).setView([48.117266, -1.6777926], 13);
+            
+            L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+            // Tiles modernes (CartoDB Positron)
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> | &copy; <a href="https://carto.com/">CARTO</a>',
+                subdomains: 'abcd',
+                maxZoom: 20
+            }).addTo(map);
+
+            const markers = L.markerClusterGroup({
+                iconCreateFunction: function(cluster) {
+                    return L.divIcon({ 
+                        html: '<div><span>' + cluster.getChildCount() + '</span></div>', 
+                        className: 'marker-cluster marker-cluster-custom', 
+                        iconSize: L.point(40, 40) 
+                    });
+                }
+            });
+
+            let allDoctors = [];
+            let currentRenderedDoctors = [];
+            let userMarker = null;
+            let routingControl = null;
+
+            function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
+                const R = 6371;
+                const dLat = (lat2 - lat1) * Math.PI / 180;
+                const dLon = (lon2 - lon1) * Math.PI / 180;
+                const a = 
+                    Math.sin(dLat/2) * Math.sin(dLat/2) +
+                    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+                    Math.sin(dLon/2) * Math.sin(dLon/2); 
+                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+                return R * c;
+            }
+
+            async function loadData() {
+                try {
+                    const response = await fetch('./medecins_extraits.json');
+                    if(!response.ok) throw new Error("Erreur réseau");
+                    const data = await response.json();
+                    
+                    allDoctors = data.filter(d => d.lat && d.lon);
+
+                    document.getElementById('stat-total').innerText = data.length;
+                    document.getElementById('stat-map').innerText = allDoctors.length;
+
+                    const specs = [...new Set(allDoctors.map(d => d.specialties || 'Médecine générale'))].sort();
+                    const select = document.getElementById('filter-specialty');
+                    select.innerHTML = '<option value="">Toutes les spécialités</option>';
+                    specs.forEach(s => {
+                        const opt = document.createElement('option');
+                        opt.value = s;
+                        opt.innerText = s;
+                        select.appendChild(opt);
+                    });
+
+                    renderDoctors(allDoctors);
+                } catch(e) {
+                    console.error("Impossible de récupérer les données :", e);
+                    document.getElementById('doctor-list').innerHTML = `<p style="color:var(--primary); text-align:center;">Erreur lors du chargement des données. Veuillez réessayer.</p>`;
+                }
+            }
+
+            function renderDoctors(doctors) {
+                currentRenderedDoctors = doctors;
+                markers.clearLayers();
+                const listContainer = document.getElementById('doctor-list');
+                listContainer.innerHTML = '';
+
+                if (doctors.length === 0) {
+                    listContainer.innerHTML = `<p style="text-align:center; color: var(--text-muted); padding: 1rem;">Aucun praticien trouvé.</p>`;
+                    map.addLayer(markers);
+                    return;
+                }
+
+                doctors.forEach(doc => {
+                    let markerColor = 'var(--primary)';
+                    let customIcon = 'fa-user-doctor';
+                    if (doc.sexe === 'Femme') {
+                        markerColor = '#ec4899'; // Rose
+                        customIcon = 'fa-user-nurse';
+                    } else if (doc.sexe === 'Homme') {
+                        markerColor = '#0ea5e9'; // Bleu cyan
+                    }
+                    
+                    const icon = L.divIcon({
+                        className: 'custom-icon',
+                        html: `<div class="custom-marker" style="--primary: ${markerColor}; border-color: ${markerColor}; color: ${markerColor};"><i class="fa-solid ${customIcon}"></i></div>`,
+                        iconSize: [40, 40],
+                        iconAnchor: [20, 20],
+                        popupAnchor: [0, -20]
+                    });
+
+                    let popupContent = `
+                        <div class="popup-wrapper">
+                            <div class="popup-header" style="background: linear-gradient(135deg, ${markerColor}, var(--secondary));">
+                                <h3>${doc.name}</h3>
+                            </div>
+                            <div class="popup-body">
+                                <div class="popup-spec">${doc.specialties || 'Médecine générale'} ${doc.sexe && doc.sexe !== 'Non renseigné' ? `(${doc.sexe})` : ''}</div>
+                                ${doc.other_disciplines ? `<div class="popup-others">${doc.other_disciplines}</div>` : ''}
+                                ${doc.dist !== undefined ? `<div class="popup-others" style="color: var(--primary); font-weight: bold;"><i class="fa-solid fa-route"></i> À ${doc.dist.toFixed(2)} km</div>` : ''}
+                                <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 10px 0;">
+                                ${doc.address ? `<div class="popup-contact"><i class="fa-solid fa-location-dot"></i> <span>${doc.address}</span></div>` : ''}
+                                ${doc.phone ? `<div class="popup-contact"><i class="fa-solid fa-phone"></i> <span>${doc.phone}</span></div>` : ''}
+                                ${userMarker ? `<button class="btn-route" onclick="traceRoute(${doc.lat}, ${doc.lon})" style="margin-top:10px; width:100%; padding:8px; background:var(--primary); color:white; border:none; border-radius:5px; cursor:pointer;"><i class="fa-solid fa-location-arrow"></i> Itinéraire</button>` : ''}
+                            </div>
+                        </div>
+                    `;
+
+                    const marker = L.marker([doc.lat, doc.lon], { icon: icon }).bindPopup(popupContent);
+                    markers.addLayer(marker);
+
+                    const card = document.createElement('div');
+                    card.className = 'doctor-card';
+                    card.innerHTML = `
+                        <div class="doc-name" style="color: ${markerColor};"><i class="fa-solid ${customIcon}"></i> ${doc.name}</div>
+                        <div class="doc-specs">${doc.specialties || 'Généraliste'}</div>
+                        ${doc.dist !== undefined ? `<div class="doc-info" style="color: var(--primary); font-weight: bold;"><i class="fa-solid fa-route"></i> ${doc.dist.toFixed(2)} km de votre recherche</div>` : ''}
+                        ${doc.address ? `<div class="doc-info"><i class="fa-solid fa-map-pin"></i> <span>${doc.address}</span></div>` : ''}
+                        ${doc.phone ? `<div class="doc-info"><i class="fa-solid fa-mobile-screen"></i> <span>${doc.phone}</span></div>` : ''}
+                        <div class="doc-info" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 5px;"><i class="fa-solid fa-crosshairs"></i> ${doc.lat.toFixed(4)}, ${doc.lon.toFixed(4)}</div>
+                    `;
+                    
+                    doc.cardElement = card;
+                    
+                    card.addEventListener('click', () => {
+                        if (userMarker && typeof window.traceRoute === 'function') {
+                            window.traceRoute(doc.lat, doc.lon);
+                            const group = new L.featureGroup([userMarker, marker]);
+                            map.fitBounds(group.getBounds(), { padding: [50, 50], animate: true, duration: 1.5 });
+                        } else {
+                            map.flyTo([doc.lat, doc.lon], 16, { animate: true, duration: 1.5 });
+                        }
+                        setTimeout(() => marker.openPopup(), 1500);
+                        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    });
+
+                    listContainer.appendChild(card);
+                });
+
+                map.addLayer(markers);
+                if (!document.getElementById('search-address').value) {
+                    map.fitBounds(markers.getBounds(), { padding: [50, 50] });
+                }
+                
+                updateListBounds();
+            }
+
+            function updateListBounds() {
+                const bounds = map.getBounds();
+                let visibleCount = 0;
+                currentRenderedDoctors.forEach(doc => {
+                    if (doc.cardElement) {
+                        if (bounds.contains([doc.lat, doc.lon])) {
+                            doc.cardElement.style.display = 'block';
+                            visibleCount++;
+                        } else {
+                            doc.cardElement.style.display = 'none';
+                        }
+                    }
+                });
+                const statMap = document.getElementById('stat-map');
+                if (statMap) statMap.innerText = visibleCount;
+            }
+
+            map.on('moveend', updateListBounds);
+            map.on('zoomend', updateListBounds);
+
+            function applyFilters() {
+                const spec = document.getElementById('filter-specialty').value;
+                const sexe = document.getElementById('filter-sexe').value;
+                
+                document.getElementById('search-address').value = ""; // Reset search
+                if(userMarker) map.removeLayer(userMarker);
+                
+                let filtered = allDoctors;
+                if (spec) filtered = filtered.filter(d => (d.specialties || 'Médecine générale') === spec);
+                if (sexe) filtered = filtered.filter(d => d.sexe === sexe);
+                
+                renderDoctors(filtered);
+            }
+
+            // Events
+            document.getElementById('filter-specialty').addEventListener('change', applyFilters);
+            document.getElementById('filter-sexe').addEventListener('change', applyFilters);
+
+            document.getElementById('btn-search').addEventListener('click', async () => {
+                const query = document.getElementById('search-address').value;
+                document.getElementById('filter-specialty').value = ""; // Reset filter
+                document.getElementById('filter-sexe').value = ""; // Reset filter
+                
+                if (!query) {
+                    if(userMarker) map.removeLayer(userMarker);
+                    allDoctors.forEach(d => delete d.dist);
+                    renderDoctors(allDoctors);
+                    return;
+                }
+                
+                document.getElementById('loader').style.opacity = '0.7';
+                document.getElementById('loader').style.display = 'flex';
+                
+                try {
+                    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query + ', France')}`);
+                    const locData = await res.json();
+                    
+                    if (locData.length > 0) {
+                        const userLat = parseFloat(locData[0].lat);
+                        const userLon = parseFloat(locData[0].lon);
+                        
+                        // We reset and re-calculate dist precisely.
+                        allDoctors = allDoctors.map(d => {
+                            if (d.lat && d.lon) {
+                                return {...d, dist: getDistanceFromLatLonInKm(userLat, userLon, d.lat, d.lon)};
+                            }
+                            return d;
+                        });
+                        
+                        const sortedDocs = [...allDoctors].filter(d => d.dist !== undefined).sort((a, b) => a.dist - b.dist);
+                        
+                        if(userMarker) map.removeLayer(userMarker);
+                        if(routingControl) map.removeControl(routingControl);
+                        
+                        userMarker = L.marker([userLat, userLon], {
+                            icon: L.divIcon({
+                                className: 'custom-icon',
+                                html: '<div class="custom-marker" style="background: var(--text-main); border-color: var(--text-main); color: white;"><i class="fa-solid fa-crosshairs"></i></div>',
+                                iconSize: [40, 40],
+                                iconAnchor: [20, 20],
+                                popupAnchor: [0, -20]
+                            }),
+                            zIndexOffset: 1000
+                        }).addTo(map).bindPopup("<div style='text-align:center;font-weight:bold;padding:5px;'>Votre position</div>").openPopup();
+                        
+                        // Register global routing trace function now that user position is known
+                        window.traceRoute = function(destLat, destLon) {
+                            if (routingControl) map.removeControl(routingControl);
+                            routingControl = L.Routing.control({
+                                waypoints: [
+                                    L.latLng(userLat, userLon),
+                                    L.latLng(destLat, destLon)
+                                ],
+                                routeWhileDragging: false,
+                                addWaypoints: false,
+                                lineOptions: {
+                                    styles: [{color: 'var(--primary)', opacity: 0.8, weight: 6}]
+                                },
+                                show: false, // hide the text itinerary by default
+                                language: 'fr'
+                            }).addTo(map);
+                            map.closePopup();
+                        };
+                        
+                        renderDoctors(sortedDocs);
+                        map.flyTo([userLat, userLon], 13, { animate: true, duration: 1.5 });
+                        
+                    } else {
+                        alert("Adresse introuvable !");
+                    }
+                } catch(e) {
+                    console.error(e);
+                    alert("Erreur lors de la recherche de l'adresse.");
+                }
+                
+                document.getElementById('loader').style.opacity = '0';
+                setTimeout(() => document.getElementById('loader').style.display = 'none', 500);
+            });
+
+            // Autocomplete events
+            const searchInput = document.getElementById('search-address');
+            const suggestionsBox = document.getElementById('suggestions-box');
+            let debounceTimer;
+
+            searchInput.addEventListener('input', (e) => {
+                const val = e.target.value;
+                clearTimeout(debounceTimer);
+                
+                if (val.length < 3) {
+                    suggestionsBox.style.display = 'none';
+                    return;
+                }
+
+                debounceTimer = setTimeout(async () => {
+                    try {
+                        // On limite aussi Nominatim pour la France / Rennes (ajout de &countrycodes=fr)
+                        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(val + ', Rennes, France')}&limit=5`);
+                        const locData = await res.json();
+                        
+                        suggestionsBox.innerHTML = '';
+                        if(locData.length > 0) {
+                            locData.forEach(loc => {
+                                const div = document.createElement('div');
+                                div.className = 'suggestion-item';
+                                div.innerText = loc.display_name;
+                                div.addEventListener('click', () => {
+                                    searchInput.value = loc.display_name;
+                                    suggestionsBox.style.display = 'none';
+                                    document.getElementById('btn-search').click();
+                                });
+                                suggestionsBox.appendChild(div);
+                            });
+                            suggestionsBox.style.display = 'block';
+                        } else {
+                            suggestionsBox.style.display = 'none';
+                        }
+                    } catch(err) {
+                        console.error("Autocomplete error", err);
+                    }
+                }, 400); // 400ms delay to avoid spamming the API
+            });
+
+            // Hide suggestions on click outside
+            document.addEventListener('click', (e) => {
+                if(!searchInput.contains(e.target) && !suggestionsBox.contains(e.target)) {
+                    suggestionsBox.style.display = 'none';
+                }
+            });
+
+            document.getElementById('search-address').addEventListener('keypress', (e) => {
+                if(e.key === 'Enter') {
+                    suggestionsBox.style.display = 'none';
+                    document.getElementById('btn-search').click();
+                }
+            });
+
+            document.getElementById('btn-refresh').addEventListener('click', async () => {
+                if (window.location.hostname !== '127.0.0.1' && window.location.hostname !== 'localhost') {
+                    alert("L'actualisation des données depuis les fichiers sources n'est disponible qu'en installation locale (Backend Python requis).");
+                    return;
+                }
+                const loader = document.getElementById('loader');
+                loader.querySelector('p').innerText = "Extraction et Géocodage en cours... (Cela peut prendre plusieurs minutes)";
+                loader.style.opacity = '1';
+                loader.style.display = 'flex';
+                
+                try {
+                    const res = await fetch('/api/refresh', { method: 'POST' });
+                    if(res.ok) {
+                        await loadData();
+                        alert("Données rechargées avec succès depuis les fichiers .txt !");
+                    } else {
+                        alert("Erreur lors du rafraîchissement.");
+                    }
+                } catch(e) {
+                    console.error(e);
+                    alert("Erreur serveur lors de la mise à jour.");
+                }
+                
+                loader.style.opacity = '0';
+                setTimeout(() => {
+                    loader.style.display = 'none';
+                    loader.querySelector('p').innerText = "Chargement des praticiens...";
+                }, 500);
+            });
+
+            // Lancement initial
+            await loadData();
+
+            // Cacher le loader
+            setTimeout(() => {
+                const loader = document.getElementById('loader');
+                loader.style.opacity = '0';
+                setTimeout(() => { loader.style.display = 'none'; }, 500);
+            }, 800);
+        });
+    </script>
+</body>
+</html>
