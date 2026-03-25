@@ -507,6 +507,11 @@
                 </div>
             </div>
 
+            <div style="padding: 10px 1.5rem 0 1.5rem; display: flex; gap: 8px;">
+                <button id="btn-select-all" class="btn-action" style="flex:1; background:var(--primary); font-size:0.8rem; padding:6px;"><i class="fa-solid fa-check-double"></i> Tout Sélectionner</button>
+                <button id="btn-filter-cart" class="btn-action" style="flex:1; background:white; color:var(--text-main); border:1px solid #cbd5e1; font-size:0.8rem; padding:6px;"><i class="fa-solid fa-filter"></i> Voir ma liste</button>
+            </div>
+
             <div class="doctor-list" id="doctor-list">
                 <!-- Les cartes vont s'injecter ici -->
             </div>
@@ -582,7 +587,8 @@
                 localStorage.setItem('medecin_cart', JSON.stringify(cart));
                 updateCartCount();
                 renderCart();
-                renderDoctors(currentRenderedDoctors);
+                renderDoctors(currentRenderedDoctors, true);
+                if (window.showOnlyCart) applyFilters();
             };
 
             window.toggleCartItemStr = function(jsonStr, event) { 
@@ -594,7 +600,8 @@
                 localStorage.setItem('medecin_cart', JSON.stringify(cart));
                 updateCartCount();
                 renderCart();
-                renderDoctors(currentRenderedDoctors); 
+                renderDoctors(currentRenderedDoctors, true); 
+                if (window.showOnlyCart && index > -1) applyFilters();
             };
 
             window.editPhone = async function(name, address, event) {
@@ -624,7 +631,7 @@
                     alert("Mode Public: Modification sauvegardée temporairement dans votre navigateur (LocalStorage).");
                 }
                 
-                renderDoctors(currentRenderedDoctors);
+                renderDoctors(currentRenderedDoctors, true);
                 if (document.getElementById('cart-modal').style.display === 'flex') renderCart();
             };
 
@@ -668,7 +675,7 @@
                 }
             }
 
-            function renderDoctors(doctors) {
+            function renderDoctors(doctors, preserveView = false) {
                 currentRenderedDoctors = doctors;
                 markers.clearLayers();
                 const listContainer = document.getElementById('doctor-list');
@@ -759,7 +766,7 @@
                 });
 
                 map.addLayer(markers);
-                if (!document.getElementById('search-address').value) {
+                if (!preserveView && !document.getElementById('search-address').value) {
                     map.fitBounds(markers.getBounds(), { padding: [50, 50] });
                 }
                 
@@ -786,6 +793,8 @@
             map.on('moveend', updateListBounds);
             map.on('zoomend', updateListBounds);
 
+            window.showOnlyCart = false;
+
             function applyFilters() {
                 const spec = document.getElementById('filter-specialty').value;
                 const sexe = document.getElementById('filter-sexe').value;
@@ -794,6 +803,7 @@
                 if(userMarker) map.removeLayer(userMarker);
                 
                 let filtered = allDoctors;
+                if (window.showOnlyCart) filtered = filtered.filter(d => cart.some(c => c.name === d.name && c.address === d.address));
                 if (spec) filtered = filtered.filter(d => (d.specialties || 'Médecine générale') === spec);
                 if (sexe) filtered = filtered.filter(d => d.sexe === sexe);
                 
@@ -801,6 +811,32 @@
             }
 
             // Events
+            document.getElementById('btn-filter-cart').addEventListener('click', (e) => {
+                window.showOnlyCart = !window.showOnlyCart;
+                if (window.showOnlyCart) {
+                    e.currentTarget.style.background = 'var(--secondary)';
+                    e.currentTarget.style.color = 'white';
+                    e.currentTarget.innerHTML = '<i class="fa-solid fa-filter-circle-xmark"></i> Voir le répertoire';
+                } else {
+                    e.currentTarget.style.background = 'white';
+                    e.currentTarget.style.color = 'var(--text-main)';
+                    e.currentTarget.innerHTML = '<i class="fa-solid fa-filter"></i> Voir ma liste';
+                }
+                applyFilters();
+            });
+
+            document.getElementById('btn-select-all').addEventListener('click', () => {
+                if (currentRenderedDoctors.length === 0) return;
+                currentRenderedDoctors.forEach(doc => {
+                    const index = cart.findIndex(d => d.name === doc.name && d.address === doc.address);
+                    if (index === -1) cart.push(doc);
+                });
+                localStorage.setItem('medecin_cart', JSON.stringify(cart));
+                updateCartCount();
+                renderCart();
+                renderDoctors(currentRenderedDoctors, true);
+            });
+
             document.getElementById('filter-specialty').addEventListener('change', applyFilters);
             document.getElementById('filter-sexe').addEventListener('change', applyFilters);
 
